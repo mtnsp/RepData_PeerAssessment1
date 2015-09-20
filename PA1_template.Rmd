@@ -7,19 +7,124 @@ output:
 
 
 ## Loading and preprocessing the data
-
+In this part, I am going to load the data, but I won't process or transform the data until the final part. The data is loaded into a data frame called "data".
+```{r, echo=TRUE}
+unzip("activity.zip")  ## Unzip the file
+data <- read.csv("activity.csv", stringsAsFactors = FALSE)  ## Load the data
+## Date transformation will be implemented in the final part about the activity differences between weekdays and weekends.
+head(data)
+```
 
 
 ## What is mean total number of steps taken per day?
-
+First, let's calculate the total number of steps taken each day.
+```{r, echo=TRUE}
+## Calculate the total number of steps taken per day
+sum_steps <- aggregate(steps ~ date, data=data, FUN = sum, na.action = na.omit)
+head(sum_steps)
+```
+The following is its histogram.
+```{r, echo=TRUE}
+## Make a histogram of it
+hist(sum_steps$steps, col="red", main = "Histogram of Total Number of Steps Per Day", xlab = "Total Number of Steps Per Day")
+```
+  
+Then let's calculate its mean and median.
+```{r, echo=TRUE}
+## Calculate the mean of the total number of steps
+mean_steps <- mean(sum_steps$steps)  
+mean_steps  ## Print the mean
+## Calculate the median of the total number of steps
+median_steps <- median(sum_steps$steps)  
+median_steps  ## Print the median
+```
 
 
 ## What is the average daily activity pattern?
-
+In this part, we first calculate the average number of steps taken in each 5-minute interval, averaged across all days.
+```{r, echo=TRUE}
+## Calculate the average number of steps taken per interval
+avg_steps <- aggregate(steps ~ interval, data=data, FUN = mean, na.action = na.omit)
+head(avg_steps)
+```
+The following is the time series plot of the interval (x-axis) and the average number of steps taken in that interval (y-axis).
+```{r, echo=TRUE}
+## Make a time series plot
+plot(avg_steps$interval, avg_steps$steps, type = 'l', xlab = "5-minute Interval", ylab = "Average Nmber of Steps Taken")
+```
+  
+Which interval contains the maximum average number of steps? Let's find it out.
+```{r, echo=TRUE}
+## Find the 5-minute interval that has the maximum average number of steps
+max_idx <- which.max(avg_steps$steps)  ## Find the index of the maximum
+intvl <- avg_steps$interval[max_idx]  ## Find the corresponding interval
+intvl  ## Print it
+```
+Therefore, the interval `r intvl` has the maximum.
 
 
 ## Imputing missing values
-
+Let's first find out the total number of missing values in the data set (i.e., the total number of rows with NAs).
+```{r, echo=TRUE}
+## Get the total number of missing values 
+num_na <- sum(!complete.cases(data))
+num_na
+```
+Below we are going to impute the missing values with the average number of steps for the corresponding 5-minute interval. We first copy the data into a new data frame, then for each row we examine if there is a missing value. If so, then we impute it using the average number of steps for its interval.
+```{r, echo=TRUE}
+## Impute missing values with the mean for that 5-minute interval
+data_new <- data  ## Copy the data
+for (i in 1:nrow(data_new)) {
+    if (is.na(data_new[i, "steps"])) {
+        data_new[i, "steps"] <- avg_steps[avg_steps$interval == data_new[i, "interval"], "steps"]  
+    }
+}
+head(data_new)
+sum(!complete.cases(data_new))  ## Check if there are missing values
+```
+In the following, we recalculate the total number of steps taken each day using the new dataset.
+```{r, echo=TRUE}
+## Calculate the total number of steps taken per day using the new data
+sum_steps_new <- aggregate(steps ~ date, data=data_new, FUN = sum)
+head(sum_steps_new)
+```
+Then we plot a histogram of the new data.
+```{r, echo=TRUE}
+## Make a histogram of the new data
+hist(sum_steps_new$steps, col="red", main = "Histogram of Total Number of Steps (After Imputing)", xlab = "Total Number of Steps")
+```
+  
+The mean and median of the total number of steps taken per day are recalculated.
+```{r, echo=TRUE}
+## Calculate the mean of the total number of steps using the new data
+mean_steps_new <- mean(sum_steps_new$steps)  
+mean_steps_new
+## Calculate the median of the total number of steps using the new data
+median_steps_new <- median(sum_steps_new$steps) 
+median_steps_new
+```
+By comparing the new mean and median with the above counterparts, we see that, the mean does not change after the imputing. This is because we impute missing values with the mean for the interval. However, the median changes.
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+In this part, we are going to analyze the activity differences between weekdays and weekends. First, we transform "date" from the character format to the date format, and tell if the day is weekend or not, and create a new factor variable "daytype" into the dataset indicating whether the date is a weekday or weekend day.
+```{r, echo=TRUE}
+## Transform "date" into the Date format and store it to a new variable "date1"
+date1 <- strptime(data_new$date, "%Y-%m-%d")
+## Tell if a day is weekend or not
+weekend <- weekdays(date1, abbreviate = T) %in% c("Sat", "Sun")
+## Create a new factor variable indicating weekday or weekend
+data_new$daytype <- factor(weekend, levels = c(TRUE, FALSE), labels = c("weekend", "weekday"))
+```
+Below we calculate the average number of steps taken in each interval per day type (weekday or weekend) using the new data set.
+```{r, echo=TRUE}
+## Calculate the average number of steps taken in each interval per day type using the new data
+avg_steps_new <- aggregate(steps ~ interval + daytype, data=data_new, FUN = mean)
+head(avg_steps_new)
+```
+In the final step, we make a panel plot containing two time series plots of the 5-minute interval and the average number of steps taken (averaged across all weekday or weekend days), one for weekday and one for weekend.
+```{r, echo=TRUE}
+##install.packages("lattice")  ## Install the "lattice" package if necessary 
+library(lattice)
+xyplot(steps ~ interval | daytype, data = avg_steps_new, layout = c(1, 2), xlab = "Interval", ylab = "Average Number of Steps", type = 'l')
+```
